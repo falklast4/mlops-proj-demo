@@ -28,5 +28,5 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "train*"]
+include = ["app*"]
 exclude = ["tests*", "deploy*", "sql*", "docker*", "pipelines*", "scripts*"]

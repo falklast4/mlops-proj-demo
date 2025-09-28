@@ -12,6 +12,8 @@ WORKDIR /app
 
 # Copy requirements
 COPY pyproject.toml .
+COPY app/ ./app/          
+COPY train/ ./train/
 
 # Install dependencies
 RUN pip install --no-cache-dir -e ".[dev]"

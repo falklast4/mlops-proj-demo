@@ -101,7 +101,7 @@ start_services() {
     
     # Wait for MLflow
     echo "Waiting for MLflow..."
-    until curl -f http://localhost:5000 &> /dev/null; do
+    until curl -f http://localhost:5001 &> /dev/null; do
         sleep 2
     done
     
@@ -189,7 +189,7 @@ show_urls() {
     echo "- ML API:          http://localhost:8000"
     echo "- Grafana:         http://localhost:3000"
     echo "- Prometheus:      http://localhost:9090"
-    echo "- MLflow:          http://localhost:5000"
+    echo "- MLflow:          http://localhost:5001"
     echo ""
     echo "Default credentials:"
     echo "  Grafana: admin / admin123"

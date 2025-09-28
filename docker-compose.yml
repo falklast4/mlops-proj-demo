@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -25,7 +23,7 @@ services:
     image: python:3.9-slim
     container_name: mlops-mlflow
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - MLFLOW_BACKEND_STORE_URI=postgresql://mlops_user:mlops_pass@postgres:5432/mlops_db
       - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
