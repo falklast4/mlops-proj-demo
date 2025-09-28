@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: mlops-system
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    scrape_configs:
+      # Prometheus itself
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      
+      # Kubernetes API server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+      
+      # ML Service pods
+      - job_name: 'ml-service'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+      
+      # Node exporter
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+  ml_service_rules.yml: |
+    groups:
+    - name: ml-service.rules
+      rules:
+      # Request rate
+      - record: ml_service:request_rate_5m
+        expr: rate(http_requests_total{job="ml-service"}[5m])
+      
+      # Error rate
+      - record: ml_service:error_rate_5m
+        expr: rate(http_requests_total{job="ml-service",status=~"5.."}[5m]) / rate(http_requests_total{job="ml-service"}[5m])
+      
+      # Latency percentiles
+      - record: ml_service:latency_p95_5m
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="ml-service"}[5m]))
+      
+      - record: ml_service:latency_p99_5m
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="ml-service"}[5m]))
+      
+      # Prediction specific metrics
+      - record: ml_service:prediction_rate_5m
+        expr: rate(ml_predictions_total[5m])
+      
+      - record: ml_service:prediction_latency_p95_5m
+        expr: histogram_quantile(0.95, rate(ml_prediction_duration_seconds_bucket[5m]))
+
+    - name: ml-service.alerts
+      rules:
+      # High error rate alert
+      - alert: MLServiceHighErrorRate
+        expr: ml_service:error_rate_5m > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: ml-service
+        annotations:
+          summary: "ML Service has high error rate"
+          description: "ML Service error rate is {{ $value | humanizePercentage }} for more than 2 minutes"
+      
+      # High latency alert
+      - alert: MLServiceHighLatency
+        expr: ml_service:latency_p95_5m > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: ml-service
+        annotations:
+          summary: "ML Service has high latency"
+          description: "ML Service 95th percentile latency is {{ $value }}s for more than 5 minutes"
+      
+      # Service down alert
+      - alert: MLServiceDown
+        expr: up{job="ml-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ml-service
+        annotations:
+          summary: "ML Service is down"
+          description: "ML Service has been down for more than 1 minute"
+      
+      # Model inference issues
+      - alert: MLServicePredictionLatencyHigh
+        expr: ml_service:prediction_latency_p95_5m > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: ml-service
+        annotations:
+          summary: "ML model prediction latency is high"
+          description: "Model prediction 95th percentile latency is {{ $value }}s"
+      
+      # Resource usage alerts
+      - alert: MLServiceHighCPU
+        expr: rate(container_cpu_usage_seconds_total{pod=~"ml-service-.*"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: ml-service
+        annotations:
+          summary: "ML Service high CPU usage"
+          description: "ML Service CPU usage is above 80% for {{ $labels.pod }}"
+      
+      - alert: MLServiceHighMemory
+        expr: container_memory_usage_bytes{pod=~"ml-service-.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          service: ml-service
+        annotations:
+          summary: "ML Service high memory usage"
+          description: "ML Service memory usage is above 90% for {{ $labels.pod }}"

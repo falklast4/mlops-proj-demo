@@ -11,12 +11,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements
-COPY requirements.txt .
-COPY train/requirements-training.txt ./train/
+COPY pyproject.toml .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir -r train/requirements-training.txt
+RUN pip install --no-cache-dir -e ".[dev]"
 
 # Copy application code
 COPY train/ ./train/

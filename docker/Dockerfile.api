@@ -9,10 +9,11 @@ RUN apt-get update && apt-get install -y \
 
 # Set up Python environment
 WORKDIR /app
-COPY requirements.txt .
+# With this:
+COPY pyproject.toml .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --user -e .
 
 # Production stage
 FROM python:3.9-slim

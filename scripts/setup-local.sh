@@ -51,8 +51,7 @@ setup_python() {
     pip install --upgrade pip
     
     # Install dependencies
-    pip install -r requirements.txt
-    pip install -r requirements-dev.txt
+    pip install -e .
     
     echo "Python environment setup completed"
 }
