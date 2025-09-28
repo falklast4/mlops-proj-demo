@@ -1,0 +1,57 @@
+# Blue Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service-blue
+  namespace: mlops-system
+  labels:
+    app: ml-service
+    version: blue
+spec:
+  selector:
+    app: ml-service
+    version: blue
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+# Green Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service-green
+  namespace: mlops-system
+  labels:
+    app: ml-service
+    version: green
+spec:
+  selector:
+    app: ml-service
+    version: green
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+# Main Service (Load Balancer Entry Point)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  namespace: mlops-system
+  labels:
+    app: ml-service
+spec:
+  selector:
+    app: ml-service
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP

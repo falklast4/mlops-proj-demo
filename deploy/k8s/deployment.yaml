@@ -1,0 +1,168 @@
+# Blue Deployment (Production)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service-blue
+  namespace: mlops-system
+  labels:
+    app: ml-service
+    version: blue
+    component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ml-service
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: ml-service
+        version: blue
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: ml-service
+        image: your-registry/ml-service:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: MODEL_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: MODEL_TYPE
+        - name: MODEL_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: MODEL_VERSION
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+      volumes:
+      - name: model-cache
+        emptyDir: {}
+---
+# Green Deployment (Staging/New Version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service-green
+  namespace: mlops-system
+  labels:
+    app: ml-service
+    version: green
+    component: api
+spec:
+  replicas: 1  # Start with 1 replica for canary
+  selector:
+    matchLabels:
+      app: ml-service
+      version: green
+  template:
+    metadata:
+      labels:
+        app: ml-service
+        version: green
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: ml-service
+        image: your-registry/ml-service:latest-green
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: MODEL_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: MODEL_TYPE
+        - name: MODEL_VERSION
+          value: "v2.0"  # New model version
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+      volumes:
+      - name: model-cache
+        emptyDir: {}
